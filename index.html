@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>Air Dance 3 — тело как один инструмент</title>
+<title>Air Dance 3 — плотный слой движения</title>
 <style>
   :root{--bg:#07070d;--ink:#eceaf4;--dim:#8f8ba6;--acc:#ff9e2c;--rec:#e5484d;--panel:rgba(16,16,28,.82);}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -40,20 +40,19 @@
 <body>
 
 <div id="start">
-  <h1>Air <span>Dance</span> 3</h1>
+  <h1>Air <span>Dance</span> 3 · Dense</h1>
   <p class="hint">
-    <b>Ваше тело — один инструмент.</b> Силуэт целиком задаёт общий тон,
-    а каждая часть тела поёт его обертоном. Согните колено — перестроится
-    звук всего тела: как на струне, где нельзя тронуть один обертон,
-    не сдвинув остальные.<br><br>
-    🧘 <b>Поза = созвучие.</b> Каждое положение тела звучит уникально
-    и воспроизводимо: нашли красивый аккорд — запомните позу, он вернётся.
-    Формула созвучия видна сверху.<br>
-    🔀 <b>Крест-накрест:</b> сгиб ноги меняет обертон противоположной руки.<br>
-    🌊 Движение оживляет голоса: звучит то, что движется. Покой — тишина.<br>
-    ⚡ Акценты — барабаны (стопы, колени, кисти, локти, голова);
-    развороты кистей — щипки.<br><br>
-    Камера — в полный рост. ● — запись видео для соцсетей.
+    <b>Тело — один инструмент.</b> Силуэт задаёт общий тон, части тела поют
+    его обертонами, кросс-связи меняют звук всего тела от одного сустава.
+    Поза = воспроизводимое созвучие (формула сверху).<br><br>
+    🧵 <b>Новое — плотный слой:</b> камера теперь слышит не 13 точек,
+    а всё движение целиком. Мелкая рябь тела, ткань, волосы, юбка, шарф —
+    превращаются в зернистую текстуру звука. Движение <b>вокруг</b> силуэта
+    (летящая ткань) — в высокие искры.<br>
+    🌡 Оранжевое свечение на экране — где именно рождается текстура.<br>
+    ⚡ Акценты — барабаны, развороты кистей — щипки, покой — тишина.<br><br>
+    Камера — в полный рост. Возьмите платок или шарф — теперь он слышен.
+    ● — запись видео.
   </p>
   <button id="startBtn">▶ Запустить</button>
   <p id="loadmsg"></p>
@@ -79,9 +78,6 @@ const MASS={0:.08,11:.11,12:.11,23:.11,24:.11,13:.03,14:.03,15:.03,16:.03,25:.10
 const PENTA=[0,3,5,7,10];
 const NOTE_OF=['A','C','D','E','G'];
 
-/* ============ ГАРМОНИЧЕСКИЙ ОРГАНИЗМ ============
-   6 голосов-зон, каждый — обертон общего тона F0.
-   own: свой сустав; partner: диагональный (кросс-связь). */
 const ZONES=[
   {key:'LL', pts:[25,27], lat:[1,1.5,2,3],     own:'lKnee',  partner:'rElbow', pan:-.25},
   {key:'RL', pts:[26,28], lat:[1,1.5,2,3],     own:'rKnee',  partner:'lElbow', pan:.25},
@@ -90,7 +86,6 @@ const ZONES=[
   {key:'RA', pts:[14,16], lat:[2,3,4,5,6,8],   own:'rElbow', partner:'lKnee',  pan:.6},
   {key:'HD', pts:[0],     lat:[6,8,12],        own:'head',   partner:'torso',  pan:0},
 ];
-/* Матрица тембра: 6 голосов × 8 углов, фиксированные веса */
 const TW=[
   [ .7,-.3, .2,-.5, .4, .1,-.6, .3],
   [-.3, .7,-.5, .2, .1, .4, .3,-.6],
@@ -105,6 +100,7 @@ const ANGLE_KEYS=['lElbow','rElbow','lKnee','rKnee','lShoulder','rShoulder','tor
 let sens=1.0;
 const P={};
 let feats={energy:0,flow:0,ci:.4,weight:0,level:0,lean:0};
+let ciEff=.4;
 let angles={}; ANGLE_KEYS.forEach(k=>angles[k]=.5);
 let degIdx=0,degCand=0,degCount=0;
 let octDown=false;
@@ -118,8 +114,9 @@ function ema(k,v,a=.2){sm[k]=(k in sm)?sm[k]+a*(v-sm[k]):v;return sm[k];}
 
 /* ============ АУДИО ============ */
 let AC=null,recDest,masterGain,masterLP,mixBus,sendGain,dlyWet,
-    airGain,airBP,subOsc,subGain,noiseBuf;
-const V={}; // голоса зон
+    airGain,airBP,subOsc,subGain,noiseBuf,grainSend;
+const V={};
+let tensionUnused=0;
 
 function makeIR(sec=2.4,dec=2.2){
   const len=Math.floor(AC.sampleRate*sec),b=AC.createBuffer(2,len,AC.sampleRate);
@@ -149,8 +146,8 @@ function initAudio(){
   const fb=AC.createGain(); fb.gain.value=.35; dly.connect(fb); fb.connect(dly);
   dlyWet=AC.createGain(); dlyWet.gain.value=0; dly.connect(dlyWet); dlyWet.connect(mixBus);
   noiseBuf=makeNoise();
+  grainSend=AC.createGain(); grainSend.gain.value=.4; grainSend.connect(sendGain);
 
-  /* Дыхание */
   airGain=AC.createGain(); airGain.gain.value=0;
   airBP=AC.createBiquadFilter(); airBP.type='bandpass'; airBP.frequency.value=900; airBP.Q.value=.8;
   const airSrc=AC.createBufferSource(); airSrc.buffer=noiseBuf; airSrc.loop=true;
@@ -158,12 +155,10 @@ function initAudio(){
   const aS=AC.createGain(); aS.gain.value=.8; airGain.connect(aS); aS.connect(sendGain);
   airSrc.start();
 
-  /* Суб-тон тела (общий фундамент, оживает от энергии) */
   subGain=AC.createGain(); subGain.gain.value=0;
   subOsc=AC.createOscillator(); subOsc.type='sine'; subOsc.frequency.value=55;
   subOsc.connect(subGain); subGain.connect(mixBus); subOsc.start();
 
-  /* Шесть голосов-обертонов */
   for(const z of ZONES){
     const pan=AC.createStereoPanner(); pan.pan.value=z.pan;
     const g=AC.createGain(); g.gain.value=0;
@@ -223,13 +218,156 @@ const PERC=[
 ];
 const percLast={};
 
+/* ============ ПЛОТНЫЙ СЛОЙ: силуэт + карта движения ============ */
+const GW=96, GH=72;
+let denseCv,denseCtx,heatCv,heatCtx,heatImg;
+let lumA=new Float32Array(GW*GH), lumB=new Float32Array(GW*GH), lumFlip=false, lumReady=false;
+const maskGrid=new Uint8Array(GW*GH);
+const dense={tex:0,halo:0,cx:.5,cy:.5,spread:.3,silCI:.4,ok:false};
+let grainAcc=0, haloAcc=0;
+
+function initDense(){
+  denseCv=document.createElement('canvas'); denseCv.width=GW; denseCv.height=GH;
+  denseCtx=denseCv.getContext('2d',{willReadFrequently:true});
+  heatCv=document.createElement('canvas'); heatCv.width=GW; heatCv.height=GH;
+  heatCtx=heatCv.getContext('2d');
+  heatImg=heatCtx.createImageData(GW,GH);
+}
+function fallbackMask(){
+  let minX=1,maxX=0,minY=1,maxY=0,n=0;
+  for(const i of TRACK){const pt=P[i];if(!pt)continue;
+    const ux=1-pt.x;
+    if(ux<minX)minX=ux; if(ux>maxX)maxX=ux;
+    if(pt.y<minY)minY=pt.y; if(pt.y>maxY)maxY=pt.y; n++;}
+  maskGrid.fill(0);
+  if(!n)return;
+  const x0=Math.max(0,Math.floor((minX-.07)*GW)), x1=Math.min(GW-1,Math.ceil((maxX+.07)*GW));
+  const y0=Math.max(0,Math.floor((minY-.07)*GH)), y1=Math.min(GH-1,Math.ceil((maxY+.07)*GH));
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)maskGrid[y*GW+x]=255;
+}
+function processDense(res){
+  dense.ok=false;
+  if(!presence){lumReady=false;dense.tex=ema('dtex',0,.3);dense.halo=ema('dhalo',0,.3);return;}
+
+  /* 1) Маска силуэта */
+  let usedMask=false;
+  try{
+    if(res&&res.segmentationMasks&&res.segmentationMasks.length){
+      const mk=res.segmentationMasks[0];
+      const mw=mk.width,mh=mk.height;
+      const mb=mk.getAsUint8Array();
+      for(let y=0;y<GH;y++){
+        const sy=Math.floor(y*mh/GH)*mw;
+        for(let x=0;x<GW;x++)
+          maskGrid[y*GW+x]=mb[sy+Math.floor(x*mw/GW)];
+      }
+      try{mk.close();}catch(e){}
+      usedMask=true;
+    }
+  }catch(e){}
+  if(!usedMask)fallbackMask();
+
+  /* 2) Яркость кадра в низком разрешении */
+  denseCtx.drawImage(video,0,0,GW,GH);
+  const img=denseCtx.getImageData(0,0,GW,GH).data;
+  const cur=lumFlip?lumA:lumB, prev=lumFlip?lumB:lumA;
+  lumFlip=!lumFlip;
+  for(let i=0,j=0;i<GW*GH;i++,j+=4)cur[i]=(img[j]+img[j+1]+img[j+2])*.333;
+  if(!lumReady){lumReady=true;return;}
+
+  /* 3) Разница кадров: текстура внутри тела, ореол снаружи */
+  let sumIn=0,nIn=0,sumHalo=0,wcx=0,wcy=0,wsum=0,sx2=0,sy2=0;
+  let bMinX=GW,bMaxX=0,bMinY=GH,bMaxY=0,areaIn=0;
+  const hd=heatImg.data;
+  for(let y=0;y<GH;y++){
+    for(let x=0;x<GW;x++){
+      const i=y*GW+x;
+      const d=Math.abs(cur[i]-prev[i]);
+      const m=maskGrid[i];
+      let hr=0,hg=0,hb=0,ha=0;
+      if(m>128){
+        areaIn++;
+        if(x<bMinX)bMinX=x; if(x>bMaxX)bMaxX=x;
+        if(y<bMinY)bMinY=y; if(y>bMaxY)bMaxY=y;
+        nIn++; sumIn+=d;
+        if(d>9){
+          wcx+=x*d; wcy+=y*d; wsum+=d;
+          sx2+=x*x*d; sy2+=y*y*d;
+          const v=clamp(d/45);
+          hr=255; hg=140; hb=40; ha=Math.min(190,v*260);
+        }
+      }else if(m<64&&d>12){
+        const nb=(x>2&&maskGrid[i-2]>128)||(x<GW-3&&maskGrid[i+2]>128)||
+                 (y>2&&maskGrid[i-2*GW]>128)||(y<GH-3&&maskGrid[i+2*GW]>128);
+        if(nb){
+          sumHalo+=d;
+          const v=clamp(d/45);
+          hr=80; hg=200; hb=255; ha=Math.min(170,v*240);
+        }
+      }
+      const k=i*4; hd[k]=hr; hd[k+1]=hg; hd[k+2]=hb; hd[k+3]=ha;
+    }
+  }
+  heatCtx.putImageData(heatImg,0,0);
+
+  dense.tex=ema('dtex',clamp((nIn?sumIn/nIn:0)/16)*sens,.25);
+  dense.halo=ema('dhalo',clamp(sumHalo/2200)*sens,.25);
+  if(wsum>0){
+    const mx=wcx/wsum, my=wcy/wsum;
+    dense.cx=ema('dcx',mx/GW,.3);
+    dense.cy=ema('dcy',my/GH,.3);
+    const varx=sx2/wsum-mx*mx, vary=sy2/wsum-my*my;
+    dense.spread=ema('dsp',clamp(Math.sqrt(Math.max(varx+vary,0))/(GW*.5)),.2);
+  }
+  if(areaIn>30){
+    const bw=(bMaxX-bMinX+1),bh=(bMaxY-bMinY+1);
+    const fill=areaIn/(bw*bh);
+    dense.silCI=ema('dci',clamp((0.62-fill)/0.32),.15);
+    dense.ok=true;
+  }
+}
+
+/* ---- Зёрна текстуры и искры ореола ---- */
+const GRAIN_LAT=[2,3,4,5,6,8];
+function spawnGrain(){
+  const t=AC.currentTime;
+  const bias=1-dense.cy;
+  let hi=Math.floor(clamp(bias+(Math.random()-.5)*.5)*GRAIN_LAT.length);
+  hi=Math.min(GRAIN_LAT.length-1,Math.max(0,hi));
+  const f=F0()*GRAIN_LAT[hi]*(1+(Math.random()-.5)*.012);
+  const o=AC.createOscillator(); o.type=Math.random()<.5?'triangle':'sine';
+  o.frequency.value=f;
+  const g=AC.createGain(), p=AC.createStereoPanner();
+  p.pan.value=clamp(((1-dense.cx)-.5)*1.8,-.9,.9);
+  const dur=.03+dense.spread*.09+Math.random()*.03;
+  const v=(.05+dense.tex*.22)*(0.6+0.4*feats.energy);
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(v,t+.008);
+  g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(g); g.connect(p); p.connect(mixBus); g.connect(grainSend);
+  o.start(t); o.stop(t+dur+.02);
+}
+function spawnSpark(){
+  const t=AC.currentTime;
+  const lat=[8,12,16];
+  const f=F0()*lat[Math.floor(Math.random()*lat.length)];
+  const o=AC.createOscillator(); o.type='sine'; o.frequency.value=f;
+  const g=AC.createGain(), p=AC.createStereoPanner();
+  p.pan.value=clamp(((1-dense.cx)-.5)*1.8+(Math.random()-.5)*.4,-.9,.9);
+  const v=.04+dense.halo*.18;
+  g.gain.setValueAtTime(v,t);
+  g.gain.exponentialRampToValueAtTime(.001,t+.22);
+  o.connect(g); g.connect(p); p.connect(mixBus); g.connect(grainSend);
+  o.start(t); o.stop(t+.24);
+}
+
 /* ============ ГЕОМЕТРИЯ: УГЛЫ СУСТАВОВ ============ */
 function jointAngle(lm,a,b,c){
-  const v1x=lm[a].x-lm[b].x, v1y=lm[a].y-lm[b].y;
-  const v2x=lm[c].x-lm[b].x, v2y=lm[c].y-lm[b].y;
+  const v1x=lm[a].x-lm[b].x,v1y=lm[a].y-lm[b].y;
+  const v2x=lm[c].x-lm[b].x,v2y=lm[c].y-lm[b].y;
   const d=(v1x*v2x+v1y*v2y)/((Math.hypot(v1x,v1y)*Math.hypot(v2x,v2y))+1e-6);
   const deg=Math.acos(clamp(d,-1,1))*180/Math.PI;
-  return clamp((175-deg)/130);          // 0 = выпрямлен, 1 = согнут
+  return clamp((175-deg)/130);
 }
 
 /* ============ АНАЛИЗ ДВИЖЕНИЯ ============ */
@@ -280,7 +418,6 @@ function processMotion(lm,now){
   if(!octDown&&feats.level>.6)octDown=true;
   else if(octDown&&feats.level<.45)octDown=false;
 
-  /* Углы суставов (с лёгким сглаживанием) */
   const raw={
     lElbow:jointAngle(lm,11,13,15), rElbow:jointAngle(lm,12,14,16),
     lKnee:jointAngle(lm,23,25,27),  rKnee:jointAngle(lm,24,26,28),
@@ -288,9 +425,8 @@ function processMotion(lm,now){
     torso:clamp(Math.abs(feats.lean)*2.2),
     head:clamp(((cx(0)-shX)/torsoN+.5)),
   };
-  for(const k of ANGLE_KEYS)angles[k]+= .3*(raw[k]-angles[k]);
+  for(const k of ANGLE_KEYS)angles[k]+=.3*(raw[k]-angles[k]);
 
-  /* Перкуссия от акцентов */
   for(const pc of PERC){
     const pt=P[pc.i]; if(!pt)continue;
     const last=percLast[pc.i]||0;
@@ -301,7 +437,6 @@ function processMotion(lm,now){
       flashes.push({x:pt.x,y:pt.y,t:now,i:pc.i});
     }
   }
-  /* Развороты кистей → щипок на частоте голоса руки */
   for(const [i,zk] of [[15,'LA'],[16,'RA']]){
     const pt=P[i]; if(!pt)continue;
     const dot=pt.v.x*pt.pv.x+pt.v.y*pt.pv.y;
@@ -316,7 +451,7 @@ function processMotion(lm,now){
 }
 
 /* ============ ГАРМОНИЧЕСКИЙ ДВИЖОК ============ */
-function F0(){ return 110*Math.pow(2,PENTA[degIdx]/12)*(octDown?.5:1); }
+function F0(){return 110*Math.pow(2,PENTA[degIdx]/12)*(octDown?.5:1);}
 function zoneEnergy(z){
   let s=0,n=0;
   for(const i of z.pts){const pt=P[i];if(pt){s+=pt.sp;n++;}}
@@ -324,11 +459,12 @@ function zoneEnergy(z){
 }
 function applyContinuous(){
   const t=AC.currentTime,f=feats;
+  ciEff=dense.ok?(.5*f.ci+.5*dense.silCI):f.ci;
   masterGain.gain.setTargetAtTime(presence?.9:.02,t,.3);
-  masterLP.frequency.setTargetAtTime(800+f.energy*7000+f.ci*2200,t,.15);
-  sendGain.gain.setTargetAtTime(clamp(.1+f.flow*.5+f.ci*.3),t,.2);
+  masterLP.frequency.setTargetAtTime(800+f.energy*7000+ciEff*2200,t,.15);
+  sendGain.gain.setTargetAtTime(clamp(.1+f.flow*.5+ciEff*.3),t,.2);
   dlyWet.gain.setTargetAtTime(f.flow*.3,t,.2);
-  airBP.frequency.setTargetAtTime(500+f.ci*2400,t,.2);
+  airBP.frequency.setTargetAtTime(500+ciEff*2400,t,.2);
   airGain.gain.setTargetAtTime(f.flow*(sm.armKe||0)*.7,t,.18);
 
   const base=F0();
@@ -337,7 +473,6 @@ function applyContinuous(){
 
   ZONES.forEach((z,vi)=>{
     const vc=V[z.key];
-    /* Выбор обертона: свой сустав + диагональный партнёр */
     const ctrl=clamp(.65*angles[z.own]+.35*angles[z.partner]);
     const cand=Math.min(z.lat.length-1,Math.floor(ctrl*z.lat.length));
     if(z.lat[cand]!==vc.harm){
@@ -347,7 +482,6 @@ function applyContinuous(){
     vc.freq=base*vc.harm;
     vc.saw.frequency.setTargetAtTime(vc.freq,t,.06);
     vc.tri.frequency.setTargetAtTime(vc.freq,t,.06);
-    /* Тембр: матрица связывает ВСЕ углы с каждым голосом */
     let mix=0;
     ANGLE_KEYS.forEach((k,j)=>{mix+=TW[vi][j]*(angles[k]-.5)*2;});
     const bright=.5+.5*Math.tanh(mix);
@@ -355,7 +489,6 @@ function applyContinuous(){
     vc.sg.gain.setTargetAtTime(.12+bright*.28,t,.12);
     vc.tg.gain.setTargetAtTime(.34-bright*.22,t,.12);
     vc.saw.detune.setTargetAtTime((bright-.5)*14,t,.12);
-    /* Громкость голоса = движение его зоны */
     vc.g.gain.setTargetAtTime(clamp(zoneEnergy(z)/4)*.4,t,.22);
   });
 }
@@ -399,6 +532,7 @@ async function initVision(msg){
       modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
       delegate:"GPU"},
     runningMode:"VIDEO",numPoses:1,
+    outputSegmentationMasks:true,
     minPoseDetectionConfidence:.5,minTrackingConfidence:.5});
   msg('Включаю камеру…');
   const stream=await navigator.mediaDevices.getUserMedia({
@@ -425,11 +559,22 @@ function draw(){
   ctx.fillStyle='rgba(7,7,13,.45)';ctx.fillRect(0,0,W,H);
   const now=performance.now();
 
+  /* Тепловая карта движения (зеркально, аддитивно) */
+  if(presence&&lumReady){
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.imageSmoothingEnabled=true;
+    ctx.scale(-1,1);
+    ctx.drawImage(heatCv,-W,0,W,H);
+    ctx.restore();
+    ctx.globalCompositeOperation='source-over';
+  }
+
   if(presence&&P[23]&&P[24]){
     const cxp=(P[23].x+P[24].x)/2*W,cyp=(P[23].y+P[24].y)/2*H;
-    ctx.strokeStyle='rgba(87,217,163,'+(0.15+feats.ci*.3)+')';
+    ctx.strokeStyle='rgba(87,217,163,'+(0.15+ciEff*.3)+')';
     ctx.lineWidth=2;
-    ctx.beginPath();ctx.arc(cxp,cyp,(0.6+feats.ci*1.6)*torsoN*H,0,7);ctx.stroke();
+    ctx.beginPath();ctx.arc(cxp,cyp,(0.6+ciEff*1.6)*torsoN*H,0,7);ctx.stroke();
     ctx.lineCap='round';
     for(const [a,b] of BONES){
       const A=P[a],B=P[b];if(!A||!B)continue;
@@ -455,7 +600,6 @@ function draw(){
     ctx.beginPath();ctx.arc(h.x*W,h.y*H,10+(1-a)*55,0,7);ctx.stroke();
     ctx.globalAlpha=1;
   }
-  /* Формула созвучия текущей позы */
   ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillStyle='rgba(255,158,44,.9)';ctx.font='700 38px system-ui';
   ctx.fillText(NOTE_OF[degIdx]+(octDown?'▾':''),W/2,52);
@@ -465,28 +609,43 @@ function draw(){
   ctx.font='9px system-ui';ctx.fillStyle='rgba(255,255,255,.4)';
   ctx.fillText('Лн·Пн·Кп·Лр·Пр·Гл — обертоны позы',W/2,98);
 
-  const mw=(W-50)/4;
+  const mw=(W-60)/5;
   meter(10,mw,'ЭНЕРГИЯ',feats.energy,'#ff9e2c');
   meter(20+mw,mw,'ПОТОК',feats.flow*feats.energy>0.01?feats.flow:0,'#4cc2ff');
   meter(30+2*mw,mw,'ВЕС',feats.weight,'#ff5d5d');
-  meter(40+3*mw,mw,'ОТКРЫТОСТЬ',feats.ci,'#57d9a3');
+  meter(40+3*mw,mw,'ОТКРЫТ.',ciEff,'#57d9a3');
+  meter(50+4*mw,mw,'ТЕКСТУРА',dense.tex,'#ffd24c');
 
   document.getElementById('status').textContent=
-    presence?(recording?'● идёт запись…':'поза = созвучие · движение = голос · формула сверху')
+    presence?(recording?'● идёт запись…':'поза = созвучие · рябь и ткань = текстура звука')
             :'встань в кадр в полный рост';
   ctx.textAlign='left';
 }
 
 /* ============ ЦИКЛ ============ */
+let lastLoopT=0;
 function loop(){
   requestAnimationFrame(loop);
   const ts=performance.now();
+  const dtL=lastLoopT?Math.min((ts-lastLoopT)/1000,.1):0;
+  lastLoopT=ts;
   if(video.readyState>=2&&landmarker&&ts>lastTs){
     try{latest=landmarker.detectForVideo(video,ts);}catch(e){}
     lastTs=ts;
   }
   processMotion(latest&&latest.landmarks&&latest.landmarks[0],ts);
-  if(AC)applyContinuous();
+  processDense(latest);
+  if(AC){
+    applyContinuous();
+    grainAcc+=dense.tex*46*dtL;
+    let gn=0;
+    while(grainAcc>1&&gn<4){spawnGrain();grainAcc-=1;gn++;}
+    if(grainAcc>4)grainAcc=4;
+    haloAcc+=dense.halo*11*dtL;
+    let hn=0;
+    while(haloAcc>1&&hn<2){spawnSpark();haloAcc-=1;hn++;}
+    if(haloAcc>2)haloAcc=2;
+  }
   draw();
 }
 
@@ -525,6 +684,7 @@ document.getElementById('startBtn').onclick=async()=>{
   try{
     initAudio();
     await AC.resume();
+    initDense();
     await initVision(msg);
     try{await navigator.wakeLock.request('screen');}catch(e){}
     document.getElementById('start').style.display='none';

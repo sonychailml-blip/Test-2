@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>Air Dance 2 — звук из движения</title>
+<title>Air Dance 3 — тело как один инструмент</title>
 <style>
   :root{--bg:#07070d;--ink:#eceaf4;--dim:#8f8ba6;--acc:#ff9e2c;--rec:#e5484d;--panel:rgba(16,16,28,.82);}
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -40,19 +40,20 @@
 <body>
 
 <div id="start">
-  <h1>Air <span>Dance</span> 2</h1>
+  <h1>Air <span>Dance</span> 3</h1>
   <p class="hint">
-    <b>Тишина — это неподвижность. Звук рождается только из движения.</b><br><br>
-    🌬 <b>Плавные широкие движения</b> — дыхание и долгое эхо<br>
-    ⚡ <b>Резкие жесты</b> — щипки и удары; акцент любой частью тела —
-    свой барабан (стопы, колени, кисти, локти, голова)<br>
-    ✋ <b>Кисти — мелодия:</b> нота рождается на развороте жеста;
-    прямой жест — чистая нота, извилистый — глиссандо<br>
-    🫁 <b>Раскрыться</b> — звук шире и ярче, <b>сжаться</b> — темнее и уже<br>
-    🕺 <b>Присесть</b> — вся музыка опускается в бас<br>
-    ↔️ <b>Наклон</b> — смещение тональности; <b>симметрия рук</b> — покой,
-    асимметрия — напряжение в гармонии<br><br>
-    Камера должна видеть вас в полный рост. ● — запись видео для соцсетей.
+    <b>Ваше тело — один инструмент.</b> Силуэт целиком задаёт общий тон,
+    а каждая часть тела поёт его обертоном. Согните колено — перестроится
+    звук всего тела: как на струне, где нельзя тронуть один обертон,
+    не сдвинув остальные.<br><br>
+    🧘 <b>Поза = созвучие.</b> Каждое положение тела звучит уникально
+    и воспроизводимо: нашли красивый аккорд — запомните позу, он вернётся.
+    Формула созвучия видна сверху.<br>
+    🔀 <b>Крест-накрест:</b> сгиб ноги меняет обертон противоположной руки.<br>
+    🌊 Движение оживляет голоса: звучит то, что движется. Покой — тишина.<br>
+    ⚡ Акценты — барабаны (стопы, колени, кисти, локти, голова);
+    развороты кистей — щипки.<br><br>
+    Камера — в полный рост. ● — запись видео для соцсетей.
   </p>
   <button id="startBtn">▶ Запустить</button>
   <p id="loadmsg"></p>
@@ -72,45 +73,62 @@
 <script type="module">
 import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
 
-/* ============== ТОЧКИ ТЕЛА И МАССЫ СЕГМЕНТОВ (биомеханика) ============== */
-const IDX = {nose:0, ls:11, rs:12, le:13, re:14, lw:15, rw:16,
-             lh:23, rh:24, lk:25, rk:26, la:27, ra:28};
-const TRACK = [0,11,12,13,14,15,16,23,24,25,26,27,28];
-const MASS = {0:.08, 11:.11,12:.11, 23:.11,24:.11,
-              13:.03,14:.03, 15:.03,16:.03,
-              25:.10,26:.10, 27:.055,28:.055};
+/* ============ ТОЧКИ, МАССЫ, ШКАЛА ============ */
+const TRACK=[0,11,12,13,14,15,16,23,24,25,26,27,28];
+const MASS={0:.08,11:.11,12:.11,23:.11,24:.11,13:.03,14:.03,15:.03,16:.03,25:.10,26:.10,27:.055,28:.055};
+const PENTA=[0,3,5,7,10];
+const NOTE_OF=['A','C','D','E','G'];
 
-const PENTA = [0,3,5,7,10];               // лестница тоник (от A)
-const NOTE_OF = ['A','C','D','E','G'];
+/* ============ ГАРМОНИЧЕСКИЙ ОРГАНИЗМ ============
+   6 голосов-зон, каждый — обертон общего тона F0.
+   own: свой сустав; partner: диагональный (кросс-связь). */
+const ZONES=[
+  {key:'LL', pts:[25,27], lat:[1,1.5,2,3],     own:'lKnee',  partner:'rElbow', pan:-.25},
+  {key:'RL', pts:[26,28], lat:[1,1.5,2,3],     own:'rKnee',  partner:'lElbow', pan:.25},
+  {key:'TO', pts:[11,12,23,24], lat:[.5,1,1.5],own:'torso',  partner:'head',   pan:0},
+  {key:'LA', pts:[13,15], lat:[2,3,4,5,6,8],   own:'lElbow', partner:'rKnee',  pan:-.6},
+  {key:'RA', pts:[14,16], lat:[2,3,4,5,6,8],   own:'rElbow', partner:'lKnee',  pan:.6},
+  {key:'HD', pts:[0],     lat:[6,8,12],        own:'head',   partner:'torso',  pan:0},
+];
+/* Матрица тембра: 6 голосов × 8 углов, фиксированные веса */
+const TW=[
+  [ .7,-.3, .2,-.5, .4, .1,-.6, .3],
+  [-.3, .7,-.5, .2, .1, .4, .3,-.6],
+  [ .2,-.2, .6, .6,-.4,-.4, .2, .2],
+  [-.5, .4,-.2, .3, .7,-.3, .5,-.2],
+  [ .4,-.5, .3,-.2,-.3, .7,-.2, .5],
+  [ .1, .1,-.4,-.4, .5, .5, .6, .6],
+];
+const ANGLE_KEYS=['lElbow','rElbow','lKnee','rKnee','lShoulder','rShoulder','torso','head'];
 
-/* ============== СОСТОЯНИЕ ДВИЖЕНИЯ ============== */
-let sens = 1.0;
-const P = {};                              // трекинг каждой точки
-let feats = {energy:0, keLegs:0, keArms:0, keTrunk:0, weight:0,
-             flow:0, ci:0.4, sym:0.7, level:0, lean:0};
-let degIdx = 0, degCand = 0, degCount = 0;
-let presence = false, torsoN = 0.25;
-const TRAILS = {15:[], 16:[]};
-const flashes = [];
-const handSt = {15:{last:0}, 16:{last:0}};
+/* ============ СОСТОЯНИЕ ============ */
+let sens=1.0;
+const P={};
+let feats={energy:0,flow:0,ci:.4,weight:0,level:0,lean:0};
+let angles={}; ANGLE_KEYS.forEach(k=>angles[k]=.5);
+let degIdx=0,degCand=0,degCount=0;
+let octDown=false;
+let presence=false,torsoN=.25,hipY=.6;
+const TRAILS={15:[],16:[]};
+const flashes=[];
+const handSt={15:{last:0},16:{last:0}};
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const sm={};
+function ema(k,v,a=.2){sm[k]=(k in sm)?sm[k]+a*(v-sm[k]):v;return sm[k];}
 
-/* ============== АУДИО ============== */
-let AC=null, recDest, masterGain, masterLP, mixBus, sendGain,
-    bassOsc, bassSub, bassLP, bassGain,
-    airGain, airBP,
-    fieldOscs=[], fieldLP, fieldGain,
-    hands={}, vibLFO, vibDepthL, vibDepthR,
-    dlyWet, noiseBuf;
-let tensionSemis = 19;
+/* ============ АУДИО ============ */
+let AC=null,recDest,masterGain,masterLP,mixBus,sendGain,dlyWet,
+    airGain,airBP,subOsc,subGain,noiseBuf;
+const V={}; // голоса зон
 
-function makeIR(sec=2.4, dec=2.2){
-  const len=Math.floor(AC.sampleRate*sec), b=AC.createBuffer(2,len,AC.sampleRate);
+function makeIR(sec=2.4,dec=2.2){
+  const len=Math.floor(AC.sampleRate*sec),b=AC.createBuffer(2,len,AC.sampleRate);
   for(let ch=0;ch<2;ch++){const d=b.getChannelData(ch);
     for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,dec);}
   return b;
 }
 function makeNoise(){
-  const len=AC.sampleRate*0.6, b=AC.createBuffer(1,len,AC.sampleRate);
+  const len=AC.sampleRate*.6,b=AC.createBuffer(1,len,AC.sampleRate);
   const d=b.getChannelData(0);
   for(let i=0;i<len;i++)d[i]=Math.random()*2-1;
   return b;
@@ -127,69 +145,43 @@ function initAudio(){
   const verb=AC.createConvolver(); verb.buffer=makeIR();
   sendGain=AC.createGain(); sendGain.gain.value=0;
   sendGain.connect(verb); verb.connect(mixBus);
-  noiseBuf=makeNoise();
-
-  /* БАС-ФУНДАМЕНТ — питается энергией ног */
-  bassGain=AC.createGain(); bassGain.gain.value=0;
-  bassLP=AC.createBiquadFilter(); bassLP.type='lowpass'; bassLP.frequency.value=300; bassLP.Q.value=4;
-  bassOsc=AC.createOscillator(); bassOsc.type='sawtooth'; bassOsc.frequency.value=55;
-  bassSub=AC.createOscillator(); bassSub.type='sine'; bassSub.frequency.value=55;
-  const bg1=AC.createGain(); bg1.gain.value=.5;
-  const bg2=AC.createGain(); bg2.gain.value=.6;
-  bassOsc.connect(bg1); bg1.connect(bassLP);
-  bassSub.connect(bg2); bg2.connect(bassLP);
-  bassLP.connect(bassGain); bassGain.connect(mixBus);
-  bassOsc.start(); bassSub.start();
-
-  /* ДЫХАНИЕ — свободный поток движения */
-  airGain=AC.createGain(); airGain.gain.value=0;
-  airBP=AC.createBiquadFilter(); airBP.type='bandpass'; airBP.frequency.value=900; airBP.Q.value=.8;
-  const airSrc=AC.createBufferSource(); airSrc.buffer=noiseBuf; airSrc.loop=true;
-  airSrc.connect(airBP); airBP.connect(airGain);
-  airGain.connect(mixBus);
-  const airSend=AC.createGain(); airSend.gain.value=.8;
-  airGain.connect(airSend); airSend.connect(sendGain);
-  airSrc.start();
-
-  /* ГАРМОНИЧЕСКОЕ ПОЛЕ — форма тела */
-  fieldGain=AC.createGain(); fieldGain.gain.value=0;
-  fieldLP=AC.createBiquadFilter(); fieldLP.type='lowpass'; fieldLP.frequency.value=900;
-  fieldLP.connect(fieldGain); fieldGain.connect(mixBus);
-  const fSend=AC.createGain(); fSend.gain.value=.9;
-  fieldGain.connect(fSend); fSend.connect(sendGain);
-  for(let i=0;i<4;i++){
-    const o=AC.createOscillator(); o.type='sawtooth'; o.frequency.value=110;
-    const g=AC.createGain(); g.gain.value=.16;
-    o.connect(g); g.connect(fieldLP); o.start(); fieldOscs.push(o);
-  }
-
-  /* КИСТИ — мелодия (стерео, вибрато от непрямоты) */
-  vibLFO=AC.createOscillator(); vibLFO.frequency.value=5.3; vibLFO.start();
-  vibDepthL=AC.createGain(); vibDepthL.gain.value=0; vibLFO.connect(vibDepthL);
-  vibDepthR=AC.createGain(); vibDepthR.gain.value=0; vibLFO.connect(vibDepthR);
   const dly=AC.createDelay(1); dly.delayTime.value=.29;
   const fb=AC.createGain(); fb.gain.value=.35; dly.connect(fb); fb.connect(dly);
   dlyWet=AC.createGain(); dlyWet.gain.value=0; dly.connect(dlyWet); dlyWet.connect(mixBus);
-  for (const side of ['L','R']){
-    const pan=AC.createStereoPanner();
+  noiseBuf=makeNoise();
+
+  /* Дыхание */
+  airGain=AC.createGain(); airGain.gain.value=0;
+  airBP=AC.createBiquadFilter(); airBP.type='bandpass'; airBP.frequency.value=900; airBP.Q.value=.8;
+  const airSrc=AC.createBufferSource(); airSrc.buffer=noiseBuf; airSrc.loop=true;
+  airSrc.connect(airBP); airBP.connect(airGain); airGain.connect(mixBus);
+  const aS=AC.createGain(); aS.gain.value=.8; airGain.connect(aS); aS.connect(sendGain);
+  airSrc.start();
+
+  /* Суб-тон тела (общий фундамент, оживает от энергии) */
+  subGain=AC.createGain(); subGain.gain.value=0;
+  subOsc=AC.createOscillator(); subOsc.type='sine'; subOsc.frequency.value=55;
+  subOsc.connect(subGain); subGain.connect(mixBus); subOsc.start();
+
+  /* Шесть голосов-обертонов */
+  for(const z of ZONES){
+    const pan=AC.createStereoPanner(); pan.pan.value=z.pan;
     const g=AC.createGain(); g.gain.value=0;
-    const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2600;
-    const oscs=[];
-    for (const dt of [-6,6]){
-      const o=AC.createOscillator(); o.type='sawtooth'; o.frequency.value=440; o.detune.value=dt;
-      (side==='L'?vibDepthL:vibDepthR).connect(o.detune);
-      const og=AC.createGain(); og.gain.value=.4;
-      o.connect(og); og.connect(lp); o.start(); oscs.push(o);
-    }
+    const lp=AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=1800;
+    const saw=AC.createOscillator(); saw.type='sawtooth';
+    const tri=AC.createOscillator(); tri.type='triangle';
+    const sg=AC.createGain(); sg.gain.value=.3;
+    const tg=AC.createGain(); tg.gain.value=.3;
+    saw.connect(sg); tri.connect(tg); sg.connect(lp); tg.connect(lp);
     lp.connect(g); g.connect(pan); pan.connect(mixBus);
-    const hs=AC.createGain(); hs.gain.value=.5;
-    g.connect(hs); hs.connect(sendGain);
+    const send=AC.createGain(); send.gain.value=.5; g.connect(send); send.connect(sendGain);
     g.connect(dly);
-    hands[side]={oscs,g,pan,lp};
+    saw.start(); tri.start();
+    V[z.key]={saw,tri,sg,tg,lp,g,harm:z.lat[0],cand:0,cnt:0,freq:110};
   }
 }
 
-/* ---- Перкуссия от акцентов ---- */
+/* ---- Перкуссия ---- */
 function kick(v){const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
   o.type='sine';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(45,t+.11);
   g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+.3);
@@ -222,170 +214,153 @@ function pluck(freq,v,panV,sharp){const t=AC.currentTime,o=AC.createOscillator()
   o.connect(g);g.connect(p);p.connect(mixBus);o.start(t);o.stop(t+dec+.02);}
 
 const PERC=[
-  {i:27, th:26, fn:(v,pt)=>kick(v)},
-  {i:28, th:26, fn:(v,pt)=>kick(v)},
-  {i:25, th:34, fn:(v,pt)=>tom(v,105)},
-  {i:26, th:34, fn:(v,pt)=>tom(v,145)},
-  {i:15, th:44, fn:(v,pt)=>{ if(pt.v.y>0) snare(v); else shaker(v); }},
-  {i:16, th:44, fn:(v,pt)=>{ if(pt.v.y>0) snare(v); else shaker(v); }},
-  {i:13, th:42, fn:(v,pt)=>rim(v)},
-  {i:14, th:42, fn:(v,pt)=>rim(v)},
-  {i:0,  th:22, fn:(v,pt)=>hat(v)},
+  {i:27,th:26,fn:(v,pt)=>kick(v)},{i:28,th:26,fn:(v,pt)=>kick(v)},
+  {i:25,th:34,fn:(v,pt)=>tom(v,105)},{i:26,th:34,fn:(v,pt)=>tom(v,145)},
+  {i:15,th:44,fn:(v,pt)=>{if(pt.v.y>0)snare(v);else shaker(v);}},
+  {i:16,th:44,fn:(v,pt)=>{if(pt.v.y>0)snare(v);else shaker(v);}},
+  {i:13,th:42,fn:(v,pt)=>rim(v)},{i:14,th:42,fn:(v,pt)=>rim(v)},
+  {i:0, th:22,fn:(v,pt)=>hat(v)},
 ];
 const percLast={};
 
-/* ============== АНАЛИЗ ДВИЖЕНИЯ (Лабан) ============== */
-const sm={};
-function ema(k,v,a=.2){sm[k]=(k in sm)?sm[k]+a*(v-sm[k]):v;return sm[k];}
-const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+/* ============ ГЕОМЕТРИЯ: УГЛЫ СУСТАВОВ ============ */
+function jointAngle(lm,a,b,c){
+  const v1x=lm[a].x-lm[b].x, v1y=lm[a].y-lm[b].y;
+  const v2x=lm[c].x-lm[b].x, v2y=lm[c].y-lm[b].y;
+  const d=(v1x*v2x+v1y*v2y)/((Math.hypot(v1x,v1y)*Math.hypot(v2x,v2y))+1e-6);
+  const deg=Math.acos(clamp(d,-1,1))*180/Math.PI;
+  return clamp((175-deg)/130);          // 0 = выпрямлен, 1 = согнут
+}
 
+/* ============ АНАЛИЗ ДВИЖЕНИЯ ============ */
 let prevT=0;
-function processMotion(lm, now){
+function processMotion(lm,now){
   presence=!!lm;
-  if(!lm){ prevT=now; return; }
+  if(!lm){prevT=now;return;}
   let dt=(now-prevT)/1000; prevT=now;
-  if(dt<=0||dt>0.25){ for(const k of TRACK) delete P[k]; return; }
+  if(dt<=0||dt>.25){for(const k of TRACK)delete P[k];return;}
 
   const cx=i=>1-lm[i].x, cy=i=>lm[i].y;
   const shX=(cx(11)+cx(12))/2, shY=(cy(11)+cy(12))/2;
-  const hpX=(cx(23)+cx(24))/2, hpY=(cy(23)+cy(24))/2;
-  torsoN=Math.max(Math.hypot(shX-hpX,shY-hpY),.05);
+  const hpX=(cx(23)+cx(24))/2; hipY=(cy(23)+cy(24))/2;
+  torsoN=Math.max(Math.hypot(shX-hpX,shY-hipY),.05);
 
-  /* Кинематика каждой точки: скорость, ускорение, рывок */
-  let ke=0,keL=0,keA=0,keT=0,wSum=0,jerkSum=0;
+  let ke=0,wSum=0,jerkSum=0,armKe=0;
   for(const i of TRACK){
-    const px=cx(i), py=cy(i);
+    const px=cx(i),py=cy(i);
     let pt=P[i];
-    if(!pt){ P[i]={x:px,y:py,v:{x:0,y:0},sp:0,a:0,jerk:0,pv:{x:0,y:0}}; continue; }
+    if(!pt){P[i]={x:px,y:py,v:{x:0,y:0},sp:0,a:0,jerk:0,pv:{x:0,y:0}};continue;}
     const vx=(px-pt.x)/torsoN/dt*sens, vy=(py-pt.y)/torsoN/dt*sens;
     pt.pv={x:pt.v.x,y:pt.v.y};
-    pt.v.x+= .5*(vx-pt.v.x); pt.v.y+= .5*(vy-pt.v.y);
+    pt.v.x+=.5*(vx-pt.v.x); pt.v.y+=.5*(vy-pt.v.y);
     const sp=Math.hypot(pt.v.x,pt.v.y);
     const acc=Math.hypot(pt.v.x-pt.pv.x,pt.v.y-pt.pv.y)/dt;
     const prevA=pt.a;
-    pt.a+= .4*(acc-pt.a);
+    pt.a+=.4*(acc-pt.a);
     pt.jerk=Math.abs(pt.a-prevA)/dt;
     pt.sp=sp; pt.x=px; pt.y=py;
     const m=MASS[i];
     ke+=m*sp*sp; wSum+=m*pt.a; jerkSum+=m*pt.jerk;
-    if(i===25||i===26||i===27||i===28) keL+=sp*sp;
-    if(i===13||i===14||i===15||i===16) keA+=sp*sp;
-    if(i===11||i===12||i===23||i===24) keT+=sp*sp;
+    if(i===13||i===14||i===15||i===16)armKe+=sp*sp;
   }
   feats.energy=ema('en',clamp(ke/14),.15);
-  feats.keLegs=ema('kl',clamp(keL/40),.15);
-  feats.keArms=ema('ka',clamp(keA/60),.2);
-  feats.keTrunk=ema('kt',clamp(keT/14),.15);
   feats.weight=ema('w',clamp(wSum/70),.2);
   feats.flow=ema('fl',clamp(1-jerkSum/2600),.1);
 
-  /* Contraction Index: разлёт конечностей от центра */
   let sumd=0;
-  for(const i of [15,16,27,28,0]) sumd+=Math.hypot(cx(i)-hpX,cy(i)-hpY);
+  for(const i of [15,16,27,28,0])sumd+=Math.hypot(cx(i)-hpX,cy(i)-hipY);
   feats.ci=ema('ci',clamp((sumd/5/torsoN-.9)/1.7),.12);
+  sm.armKe=ema('ak',clamp(armKe/60),.2);
 
-  /* Симметрия скоростей кистей (зеркальная) */
-  const L=P[15],R=P[16];
-  if(L&&R){
-    const dvx=L.v.x+R.v.x, dvy=L.v.y-R.v.y;
-    const tot=L.sp+R.sp+.6;
-    feats.sym=ema('sy',clamp(1-Math.hypot(dvx,dvy)/tot),.08);
-  }
-
-  /* Уровень (присед) и наклон */
   const ankY=(cy(27)+cy(28))/2;
-  feats.level=ema('lv',1-clamp(((ankY-hpY)/torsoN-.9)/.9),.12);
+  feats.level=ema('lv',1-clamp(((ankY-hipY)/torsoN-.9)/.9),.12);
   feats.lean=ema('ln',(shX-hpX)/torsoN,.15);
   const zone=feats.lean<-.16?0:feats.lean<-.05?1:feats.lean<.05?2:feats.lean<.16?3:4;
-  if(zone!==degIdx){ if(zone===degCand){ if(++degCount>7){degIdx=zone;degCount=0;} } else {degCand=zone;degCount=0;} }
+  if(zone!==degIdx){if(zone===degCand){if(++degCount>7){degIdx=zone;degCount=0;}}else{degCand=zone;degCount=0;}}
+  if(!octDown&&feats.level>.6)octDown=true;
+  else if(octDown&&feats.level<.45)octDown=false;
 
-  /* Гармоническое напряжение от симметрии (с гистерезисом) */
-  if(feats.sym>.7) tensionSemis=19;
-  else if(feats.sym<.42) tensionSemis=14;
-  else if(feats.sym<.58&&tensionSemis===19) tensionSemis=17;
-  else if(feats.sym>.62&&tensionSemis===14) tensionSemis=17;
+  /* Углы суставов (с лёгким сглаживанием) */
+  const raw={
+    lElbow:jointAngle(lm,11,13,15), rElbow:jointAngle(lm,12,14,16),
+    lKnee:jointAngle(lm,23,25,27),  rKnee:jointAngle(lm,24,26,28),
+    lShoulder:jointAngle(lm,23,11,13), rShoulder:jointAngle(lm,24,12,14),
+    torso:clamp(Math.abs(feats.lean)*2.2),
+    head:clamp(((cx(0)-shX)/torsoN+.5)),
+  };
+  for(const k of ANGLE_KEYS)angles[k]+= .3*(raw[k]-angles[k]);
 
-  /* Перкуссия: всплески ускорения любой частью тела */
+  /* Перкуссия от акцентов */
   for(const pc of PERC){
-    const pt=P[pc.i]; if(!pt) continue;
+    const pt=P[pc.i]; if(!pt)continue;
     const last=percLast[pc.i]||0;
-    if(pt.a>pc.th*(2-sens) && now-last>190){
+    if(pt.a>pc.th*(2-sens)&&now-last>190){
       percLast[pc.i]=now;
-      const v=clamp(pt.a/pc.th*.45,.15,1)*(0.4+0.6*feats.weight+0.2);
+      const v=clamp(pt.a/pc.th*.45,.15,1)*(.4+.6*feats.weight+.2);
       pc.fn(clamp(v),pt);
       flashes.push({x:pt.x,y:pt.y,t:now,i:pc.i});
     }
   }
-
-  /* Кисти: развороты жеста рождают ноты */
-  for(const [i,side] of [[15,'L'],[16,'R']]){
-    const pt=P[i]; if(!pt) continue;
+  /* Развороты кистей → щипок на частоте голоса руки */
+  for(const [i,zk] of [[15,'LA'],[16,'RA']]){
+    const pt=P[i]; if(!pt)continue;
     const dot=pt.v.x*pt.pv.x+pt.v.y*pt.pv.y;
     const st=handSt[i];
-    if(dot<0 && Math.max(pt.sp,Math.hypot(pt.pv.x,pt.pv.y))>1.4 && now-st.last>140){
+    if(dot<0&&Math.max(pt.sp,Math.hypot(pt.pv.x,pt.pv.y))>1.4&&now-st.last>140){
       st.last=now;
-      pluck(handFreq(i,hpY),clamp(pt.sp/6),clamp((pt.x-.5)*1.8,-.9,.9),clamp(feats.weight*1.5));
+      pluck(V[zk].freq,clamp(pt.sp/6),clamp((pt.x-.5)*1.8,-.9,.9),clamp(feats.weight*1.5));
     }
     TRAILS[i].push({x:pt.x,y:pt.y});
     if(TRAILS[i].length>16)TRAILS[i].shift();
   }
 }
 
-/* Прямота траектории кисти (Effort Space) */
-function directness(i){
-  const tr=TRAILS[i];
-  if(tr.length<6) return 1;
-  let path=0;
-  for(let k=1;k<tr.length;k++) path+=Math.hypot(tr[k].x-tr[k-1].x,tr[k].y-tr[k-1].y);
-  const disp=Math.hypot(tr[tr.length-1].x-tr[0].x,tr[tr.length-1].y-tr[0].y);
-  return clamp(disp/(path+1e-5));
+/* ============ ГАРМОНИЧЕСКИЙ ДВИЖОК ============ */
+function F0(){ return 110*Math.pow(2,PENTA[degIdx]/12)*(octDown?.5:1); }
+function zoneEnergy(z){
+  let s=0,n=0;
+  for(const i of z.pts){const pt=P[i];if(pt){s+=pt.sp;n++;}}
+  return n?s/n:0;
 }
-function rootHz(){ return 110*Math.pow(2,PENTA[degIdx]/12)*Math.pow(2,-feats.level); }
-function handFreq(i,hipY){
-  const pt=P[i]; if(!pt) return 440;
-  const h=clamp((hipY-pt.y)/(1.6*torsoN));
-  const idx=Math.min(9,Math.floor(h*10));
-  const base=220*Math.pow(2,PENTA[degIdx]/12)*(feats.level>.55?.5:1);
-  return base*Math.pow(2,Math.floor(idx/5))*Math.pow(2,PENTA[idx%5]/12);
-}
-
-/* ============== НЕПРЕРЫВНОЕ ПРИМЕНЕНИЕ К ЗВУКУ ============== */
 function applyContinuous(){
-  const t=AC.currentTime, f=feats;
+  const t=AC.currentTime,f=feats;
   masterGain.gain.setTargetAtTime(presence?.9:.02,t,.3);
   masterLP.frequency.setTargetAtTime(800+f.energy*7000+f.ci*2200,t,.15);
   sendGain.gain.setTargetAtTime(clamp(.1+f.flow*.5+f.ci*.3),t,.2);
   dlyWet.gain.setTargetAtTime(f.flow*.3,t,.2);
-
-  const r=rootHz();
-  bassOsc.frequency.setTargetAtTime(r/2,t,.15);
-  bassSub.frequency.setTargetAtTime(r/2,t,.15);
-  bassLP.frequency.setTargetAtTime(160+(1-f.level)*380+f.energy*300,t,.15);
-  bassGain.gain.setTargetAtTime(f.keLegs*.85,t,.25);
-
   airBP.frequency.setTargetAtTime(500+f.ci*2400,t,.2);
-  airGain.gain.setTargetAtTime(f.flow*f.keArms*.7,t,.18);
+  airGain.gain.setTargetAtTime(f.flow*(sm.armKe||0)*.7,t,.18);
 
-  const semis=[0,7,12,tensionSemis];
-  fieldOscs.forEach((o,k)=>o.frequency.setTargetAtTime(r*Math.pow(2,semis[k]/12),t,.12));
-  fieldLP.frequency.setTargetAtTime(350+f.ci*3600+f.energy*1400,t,.15);
-  fieldGain.gain.setTargetAtTime(clamp(f.keTrunk*1.2+f.energy*.25)*.5,t,.3);
+  const base=F0();
+  subOsc.frequency.setTargetAtTime(base/2,t,.15);
+  subGain.gain.setTargetAtTime(f.energy*.5,t,.3);
 
-  const hipY=P[23]&&P[24]?(P[23].y+P[24].y)/2:0.6;
-  for(const [i,side,vd] of [[15,'L',vibDepthL],[16,'R',vibDepthR]]){
-    const pt=P[i], H=hands[side];
-    if(!pt){ H.g.gain.setTargetAtTime(0,t,.1); continue; }
-    const dir=directness(i);
-    const fr=handFreq(i,hipY);
-    const glide=.02+(1-dir)*.14;
-    H.oscs.forEach(o=>o.frequency.setTargetAtTime(fr,t,glide));
-    vd.gain.setTargetAtTime((1-dir)*45,t,.1);
-    H.g.gain.setTargetAtTime(clamp(pt.sp/5)*.5,t,.09);
-    H.pan.pan.setTargetAtTime(clamp((pt.x-.5)*1.8,-.9,.9),t,.1);
-  }
+  ZONES.forEach((z,vi)=>{
+    const vc=V[z.key];
+    /* Выбор обертона: свой сустав + диагональный партнёр */
+    const ctrl=clamp(.65*angles[z.own]+.35*angles[z.partner]);
+    const cand=Math.min(z.lat.length-1,Math.floor(ctrl*z.lat.length));
+    if(z.lat[cand]!==vc.harm){
+      if(cand===vc.cand){if(++vc.cnt>5){vc.harm=z.lat[cand];vc.cnt=0;}}
+      else{vc.cand=cand;vc.cnt=0;}
+    }
+    vc.freq=base*vc.harm;
+    vc.saw.frequency.setTargetAtTime(vc.freq,t,.06);
+    vc.tri.frequency.setTargetAtTime(vc.freq,t,.06);
+    /* Тембр: матрица связывает ВСЕ углы с каждым голосом */
+    let mix=0;
+    ANGLE_KEYS.forEach((k,j)=>{mix+=TW[vi][j]*(angles[k]-.5)*2;});
+    const bright=.5+.5*Math.tanh(mix);
+    vc.lp.frequency.setTargetAtTime(500+bright*4200,t,.12);
+    vc.sg.gain.setTargetAtTime(.12+bright*.28,t,.12);
+    vc.tg.gain.setTargetAtTime(.34-bright*.22,t,.12);
+    vc.saw.detune.setTargetAtTime((bright-.5)*14,t,.12);
+    /* Громкость голоса = движение его зоны */
+    vc.g.gain.setTargetAtTime(clamp(zoneEnergy(z)/4)*.4,t,.22);
+  });
 }
 
-/* ============== ЗАПИСЬ ВИДЕО ============== */
+/* ============ ЗАПИСЬ ВИДЕО ============ */
 let recorder=null,chunks=[],recording=false,lastBlob=null;
 function pickMime(){
   for(const m of ['video/webm;codecs=vp8,opus','video/webm','video/mp4'])
@@ -405,9 +380,9 @@ function startRec(){
   };
   recorder.start(); recording=true;
 }
-function stopRec(){ if(recorder&&recorder.state!=='inactive')recorder.stop(); recording=false; }
+function stopRec(){if(recorder&&recorder.state!=='inactive')recorder.stop();recording=false;}
 
-/* ============== КАМЕРА + MEDIAPIPE ============== */
+/* ============ КАМЕРА + MEDIAPIPE ============ */
 const video=document.getElementById('video');
 const canvas=document.getElementById('canvas');
 const ctx=canvas.getContext('2d',{alpha:false});
@@ -431,16 +406,17 @@ async function initVision(msg){
   video.srcObject=stream;await video.play();
 }
 
-/* ============== ОТРИСОВКА ============== */
+/* ============ ОТРИСОВКА ============ */
 const BONES=[[11,12],[11,13],[13,15],[12,14],[14,16],
              [11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28],[0,11],[0,12]];
 const FLASH_COLOR={27:'#ff5d5d',28:'#ff5d5d',25:'#ffb84c',26:'#ffb84c',
                    15:'#4cc2ff',16:'#4cc2ff',13:'#9b7bff',14:'#9b7bff',0:'#57d9a3'};
+function fmtHarm(h){return h===.5?'½':h===1.5?'1½':String(h);}
 function meter(x,w,label,val,color){
   const H=canvas.height;
-  ctx.fillStyle='rgba(255,255,255,.1)'; ctx.fillRect(x,H-26,w,7);
-  ctx.fillStyle=color; ctx.fillRect(x,H-26,w*clamp(val),7);
-  ctx.fillStyle='rgba(255,255,255,.5)'; ctx.font='9px system-ui'; ctx.textAlign='left';
+  ctx.fillStyle='rgba(255,255,255,.1)';ctx.fillRect(x,H-26,w,7);
+  ctx.fillStyle=color;ctx.fillRect(x,H-26,w*clamp(val),7);
+  ctx.fillStyle='rgba(255,255,255,.5)';ctx.font='9px system-ui';ctx.textAlign='left';
   ctx.fillText(label,x,H-32);
 }
 function draw(){
@@ -450,22 +426,18 @@ function draw(){
   const now=performance.now();
 
   if(presence&&P[23]&&P[24]){
-    /* Круг открытости вокруг центра тела */
-    const cxp=(P[23].x+P[24].x)/2*W, cyp=(P[23].y+P[24].y)/2*H;
+    const cxp=(P[23].x+P[24].x)/2*W,cyp=(P[23].y+P[24].y)/2*H;
     ctx.strokeStyle='rgba(87,217,163,'+(0.15+feats.ci*.3)+')';
     ctx.lineWidth=2;
     ctx.beginPath();ctx.arc(cxp,cyp,(0.6+feats.ci*1.6)*torsoN*H,0,7);ctx.stroke();
-
-    /* Скелет: яркость кости = скорость */
     ctx.lineCap='round';
     for(const [a,b] of BONES){
-      const A=P[a],B=P[b]; if(!A||!B)continue;
+      const A=P[a],B=P[b];if(!A||!B)continue;
       const s=clamp((A.sp+B.sp)/8);
       ctx.strokeStyle='rgba(255,255,255,'+(0.18+s*.7)+')';
       ctx.lineWidth=2+s*4;
       ctx.beginPath();ctx.moveTo(A.x*W,A.y*H);ctx.lineTo(B.x*W,B.y*H);ctx.stroke();
     }
-    /* Следы кистей */
     for(const [i,col] of [[15,'76,194,255'],[16,'255,158,44']]){
       const tr=TRAILS[i];
       for(let k=1;k<tr.length;k++){
@@ -475,7 +447,6 @@ function draw(){
       }
     }
   }
-  /* Вспышки акцентов */
   for(let i=flashes.length-1;i>=0;i--){
     const h=flashes[i],a=1-(now-h.t)/420;
     if(a<=0){flashes.splice(i,1);continue;}
@@ -484,11 +455,16 @@ function draw(){
     ctx.beginPath();ctx.arc(h.x*W,h.y*H,10+(1-a)*55,0,7);ctx.stroke();
     ctx.globalAlpha=1;
   }
-  /* Тоника */
-  ctx.fillStyle='rgba(255,158,44,.85)';ctx.font='700 40px system-ui';
+  /* Формула созвучия текущей позы */
   ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.fillText(NOTE_OF[degIdx],W/2,58);
-  /* Метрики Лабана */
+  ctx.fillStyle='rgba(255,158,44,.9)';ctx.font='700 38px system-ui';
+  ctx.fillText(NOTE_OF[degIdx]+(octDown?'▾':''),W/2,52);
+  const formula=ZONES.map(z=>fmtHarm(V[z.key]?V[z.key].harm:1)).join('·');
+  ctx.font='600 15px system-ui';ctx.fillStyle='rgba(255,255,255,.75)';
+  ctx.fillText(formula,W/2,82);
+  ctx.font='9px system-ui';ctx.fillStyle='rgba(255,255,255,.4)';
+  ctx.fillText('Лн·Пн·Кп·Лр·Пр·Гл — обертоны позы',W/2,98);
+
   const mw=(W-50)/4;
   meter(10,mw,'ЭНЕРГИЯ',feats.energy,'#ff9e2c');
   meter(20+mw,mw,'ПОТОК',feats.flow*feats.energy>0.01?feats.flow:0,'#4cc2ff');
@@ -496,12 +472,12 @@ function draw(){
   meter(40+3*mw,mw,'ОТКРЫТОСТЬ',feats.ci,'#57d9a3');
 
   document.getElementById('status').textContent=
-    presence?(recording?'● идёт запись…':'тишина = покой · звук рождается из движения')
+    presence?(recording?'● идёт запись…':'поза = созвучие · движение = голос · формула сверху')
             :'встань в кадр в полный рост';
   ctx.textAlign='left';
 }
 
-/* ============== ЦИКЛ ============== */
+/* ============ ЦИКЛ ============ */
 function loop(){
   requestAnimationFrame(loop);
   const ts=performance.now();
@@ -514,7 +490,7 @@ function loop(){
   draw();
 }
 
-/* ============== КНОПКИ ============== */
+/* ============ КНОПКИ ============ */
 const sensLabel=document.getElementById('sensLabel');
 const updS=()=>sensLabel.textContent=Math.round(sens*100)+'%';
 document.getElementById('sensUp').onclick=()=>{sens=Math.min(2,sens+.1);updS();};
@@ -540,7 +516,7 @@ document.getElementById('dlBtn').onclick=()=>{
   document.body.appendChild(a);a.click();a.remove();
 };
 
-/* ============== СТАРТ ============== */
+/* ============ СТАРТ ============ */
 document.getElementById('startBtn').onclick=async()=>{
   const btn=document.getElementById('startBtn');
   const msgEl=document.getElementById('loadmsg');
